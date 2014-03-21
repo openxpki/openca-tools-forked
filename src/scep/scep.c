@@ -1,4 +1,4 @@
-/* 
+/*
  * OpenCA SCEP tool
  * (c) 2002/2003 by Massimiliano Pala and OpenCA Group
  * OpenCA Licensed Software
@@ -14,7 +14,6 @@
 #include "scep_bio.h"
 
 #include <openca/config.h>
-#include <openca/general.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -28,6 +27,7 @@
 /* General exported variables */
 int debug = 0;
 int verbose = 0;
+
 
 static char *usage[] = {
 "OpenCA Simple Certificate Enrollment Protocol Tools\n",
@@ -49,6 +49,7 @@ static char *usage[] = {
 " -keyform          decoding secret key file format (default is PEM).\n",
 " -passin arg       Password passing method (check openssl for options).\n",
 " -passwd pwd       Password protecting the private key (if any).\n",
+" -CAchain file     trusted certificate chain (only PEM, required for GetNextCACert) .\n",
 " -CAfile file      CA's trusted certificate.\n",
 " -CAform           CA's trusted certificate format (default is PEM).\n",
 "\nNew Message Extensions:\n\n",
@@ -68,6 +69,17 @@ static char *usage[] = {
 " -issuedcert file  issued cert to be added to a SUCCESS CertRep msg.\n",
 " -issuedcertform   issued cert file format (default is PEM).\n",
 " -serial           serial of requested certificate (CertReq msgtype).\n",
+" -nextCAfile file  nextCA certificate.\n",
+" -nextCAform       nextCA certificate format (default is PEM).\n",
+" -nextRAfile file  nextRA certificate.\n",
+" -nextRAform       nextRA certificate format (default is PEM).\n",
+"\ndefine Hash Algorithm (md5 default):\n\n",
+" -md5              md5\n",
+" -sha1             sha1\n",
+" -sha224           sha224\n",
+" -sha256           sha256\n",
+" -sha384           sha384\n",
+" -sha512           sha512\n",
 #ifdef HAVE_ENGINE
 " -e engine         use engine e, possibly a hardware device.\n",
 #endif
@@ -82,7 +94,7 @@ static char *usage[] = {
 " -noout            Do not output original data.\n",
 " -version          Print Package Version and exits.\n",
 " -debug            Output Debugging information.\n",
-" -v                Talk alot while doing things\n",
+" -v                Talk a lot while doing things\n",
 NULL
 };
 
@@ -112,17 +124,17 @@ int app_passwd(BIO *err, char *arg1, char *arg2, char **pass1, char **pass2) {
 	int same;
 	if(!arg2 || !arg1 || strcmp(arg1, arg2))
 		same = 0;
-	else 
+	else
 		same = 1;
 	if(arg1) {
 				//is this a FIXME: ???
 				//can we reduce it to one repetition?
-				//check if cacert or racert - is it *cert? 
-				//check if cacert or racert - is it *cert? 
-				//check if cacert or racert - is it *cert? 
-				//check if cacert or racert - is it *cert? 
-				//check if cacert or racert - is it *cert? 
-				//check if cacert or racert - is it *cert? 
+				//check if cacert or racert - is it *cert?
+				//check if cacert or racert - is it *cert?
+				//check if cacert or racert - is it *cert?
+				//check if cacert or racert - is it *cert?
+				//check if cacert or racert - is it *cert?
+				//check if cacert or racert - is it *cert?
 		*pass1 = app_get_pass(err, arg1, same);
 		if(!*pass1) return 0;
 	} else if(pass1) *pass1 = NULL;
@@ -235,9 +247,14 @@ int	main(int argc, char *argv[]) {
 	char *issuedcertfname = NULL;
 	char *reqfname = NULL;
 	char *crlfname = NULL;
-	
+
 	/* CA's certificate filename */
 	char *cacertfname = NULL;
+
+	char *cachainfname = NULL;
+
+	char *nextcacertfname = NULL;
+	char *nextracertfname = NULL;
 
 	char **pp = NULL;
 	char *key = NULL;
@@ -253,13 +270,18 @@ int	main(int argc, char *argv[]) {
 	int reccertform = FORMAT_PEM;
 	int issuedcertform = FORMAT_PEM;
 	int cacertform = FORMAT_PEM;
-	int reqform = FORMAT_PEM;
-	int crlform = FORMAT_PEM;
-	int inform = FORMAT_PEM;
-	int outform = FORMAT_PEM;
+	int nextcacertform = FORMAT_PEM;
+	int nextracertform = FORMAT_PEM;
+
+    int reqform = FORMAT_PEM;
+    int crlform = FORMAT_PEM;
+    int inform = FORMAT_PEM;
+    int outform = FORMAT_PEM;
+
 
 	int new = 0;
 	int text = 0;
+
 	int print_scert = 0;
 	int print_req = 0;
 	int print_crl = 0;
@@ -270,7 +292,7 @@ int	main(int argc, char *argv[]) {
 	int print_serial = 0;
 
 	//private - not documented
-	
+
 	int noout = 0;
 	int version = 0;
 
@@ -284,6 +306,9 @@ int	main(int argc, char *argv[]) {
 	/* encryption algorithm */
 	EVP_CIPHER cipher = *EVP_des_ede3_cbc();
 
+	/*Hash Algorithem*/
+	EVP_MD hashalg = *EVP_md5();
+
 	/* Private key for the signer */
 	EVP_PKEY *pkey = NULL;
 
@@ -295,6 +320,11 @@ int	main(int argc, char *argv[]) {
 
 	/* trusted CA certificate */
 	X509 *cacert = NULL;
+	STACK_OF(X509) *cachain = NULL;
+
+	/* nextCA certificate */
+	X509 *nextcacert = NULL;
+	X509 *nextracert = NULL;
 
 	/* X509 Request for a new PKCSReq */
 	X509_REQ *req = NULL;
@@ -307,7 +337,7 @@ int	main(int argc, char *argv[]) {
 
 	// int		c, rc, bytes, fd;
 	// char		filename[1024];
-	
+
 	/* Incoming message structure */
 	SCEP_MSG	*msg = NULL;
 
@@ -338,7 +368,7 @@ int	main(int argc, char *argv[]) {
 
 	while (argc >= 1)
 		{
-		if      (strcmp(*argv,"-inform") == 0)
+		if(strcmp(*argv,"-inform") == 0)
 			{
 			if (--argc < 1) goto bad;
 			inform=str2fmt(*(++argv));
@@ -387,6 +417,31 @@ int	main(int argc, char *argv[]) {
 			{
 			if (--argc < 1) goto bad;
 			cacertform=str2fmt(*(++argv));
+			}
+		else if (strcmp(*argv,"-nextCAfile") == 0)
+			{
+			if (--argc < 1) goto bad;
+			nextcacertfname= *(++argv);
+			}
+		else if (strcmp(*argv,"-nextCAform") == 0)
+			{
+			if (--argc < 1) goto bad;
+			nextcacertform= str2fmt(*(++argv));
+			}
+		else if (strcmp(*argv,"-CAchain") == 0)
+			{
+				if (--argc < 1) goto bad;
+				cachainfname= *(++argv);
+			}
+		else if (strcmp(*argv,"-nextRAfile") == 0)
+			{
+			if (--argc < 1) goto bad;
+			nextracertfname= *(++argv);
+			}
+		else if (strcmp(*argv,"-nextRAform") == 0)
+			{
+			if (--argc < 1) goto bad;
+			nextracertform= str2fmt(*(++argv));
 			}
 		else if (strcmp(*argv,"-reqfile") == 0)
                         {
@@ -474,6 +529,14 @@ int	main(int argc, char *argv[]) {
 #endif
 		else if (strcmp(*argv,"-des") == 0)
 			cipher=*EVP_des_cbc();
+		else if (strcmp(*argv,"-sha1") == 0)
+			hashalg=*EVP_sha1();
+		else if (strcmp(*argv,"-sha224") == 0)
+			hashalg=*EVP_sha224();
+		else if (strcmp(*argv,"-sha384") == 0)
+			hashalg=*EVP_sha384();
+		else if (strcmp(*argv,"-sha512") == 0)
+			hashalg=*EVP_sha512();
 		else if (strcmp(*argv,"-v") == 0)
 			verbose=1;
 		else if (strcmp(*argv,"-debug") == 0)
@@ -503,9 +566,15 @@ int	main(int argc, char *argv[]) {
 		else if (strcmp(*argv,"-noout") == 0)
 			noout=1;
 		else badops = 1;
+
+		//printf("argv: %s badops: %d \n", *argv, badops);
 		argc--;
 		argv++;
+
+
 		}
+
+
 
 bad:
 	if (badops) {
@@ -541,6 +610,8 @@ bad:
 			goto err;
 		}
 	}
+
+
 
 	/* Output to file */
 	if (outfile != NULL)
@@ -613,7 +684,7 @@ bad:
         	        goto err;
 #endif
 	        	} else if ( keyform == FORMAT_PEM ) {
-	        	        pkey = (EVP_PKEY *) PEM_read_bio_PrivateKey(
+	        		    pkey = (EVP_PKEY *) PEM_read_bio_PrivateKey(
 						keyf, NULL,NULL, key);
 	        	        if (key) memset(key,0,strlen(key));
 	        	} else {
@@ -621,6 +692,7 @@ bad:
 			goto err;
         	};
         	if( keyf ) BIO_free( keyf );
+
 
         	if( pkey == NULL ) {
         	        BIO_printf(bio_err,"Error loading private key\n");
@@ -661,6 +733,7 @@ bad:
 
 	}
 
+
 	/*****************************************************************/
 	/* Load the CA certificate file */
 	/*
@@ -679,6 +752,43 @@ bad:
 	                goto err;
 		}
 	}
+	/*****************************************************************/
+	/* Load the CA certificate chain file */
+
+	if ( cachainfname ) {
+		// if( verbose )
+	        //         BIO_printf(outbio,"reading CA certificate chain file.\n");
+		cachain = load_certificate_stack( cachainfname, FORMAT_PEM );
+	        if (cachain == NULL) {
+	                BIO_printf(bio_err,"cannot load CA certificate chain.\n");
+	                goto err;
+		}
+	}
+
+	/*****************************************************************/
+	/* Load the nextCA certificate file */
+	if ( nextcacertfname ) {
+		// if( verbose )
+	        //         BIO_printf(outbio,"reading CA certificate file.\n");
+		nextcacert = load_certificate( nextcacertfname, nextcacertform );
+	        if (nextcacert == NULL) {
+	                BIO_printf(bio_err,"cannot load nextCA certificate.\n");
+	                goto err;
+		}
+	}
+
+	/*****************************************************************/
+	/* Load the nextRA certificate file */
+	if ( nextracertfname ) {
+		// if( verbose )
+	        //         BIO_printf(outbio,"reading CA certificate file.\n");
+		nextracert = load_certificate( nextracertfname, nextracertform );
+	        if (nextracert == NULL) {
+	                BIO_printf(bio_err,"cannot load nextRA certificate.\n");
+	                goto err;
+		}
+	}
+
 
 	/*****************************************************************/
 	/* Load the issued certificate file (if any) for the CertRep with
@@ -686,7 +796,7 @@ bad:
 	if ( issuedcertfname ) {
 		// if( verbose )
 	        //         BIO_printf(outbio,"reading certificate file.\n");
-		issuedcert = load_certificate ( issuedcertfname, 
+		issuedcert = load_certificate ( issuedcertfname,
 				issuedcertform );
 	        if ( issuedcert == NULL) {
 	                BIO_printf(bio_err,"cannot load isseued cert.\n");
@@ -730,7 +840,7 @@ bad:
 
 		if( verbose )
 	                BIO_printf(outbio,"reading crl file.\n");
-		
+
 	        if ((crlf=BIO_new_file( crlfname, "r")) == NULL) {
 	                BIO_printf(bio_err,"unable to open crl file.\n");
 			ERR_print_errors(bio_err);
@@ -799,7 +909,7 @@ bad:
 		// then we will build a corrisponding reply with passed
 		// information (command line overrides default from in
 		// msg)
-		
+
 		PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 		int type;
 		int status;
@@ -807,12 +917,12 @@ bad:
 
 		type = (int) SCEP_str2type( msgtype );
 		if( type < 0 ) {
-			BIO_printf( bio_err, 
+			BIO_printf( bio_err,
 				"%s:%d Message type (%s) not supported (%d)!\n",
 			       	__FILE__, __LINE__, msgtype, type );
 		}
 
-		if( (type == MSG_GETCERT) || (type == MSG_GETCRL)) {
+		if( (type == MSG_GETCERT) || (type == MSG_GETCRL) ) {
 			if( !sno ) {
 				if (!signcert) goto bad;
 				sno = ASN1_INTEGER_dup(
@@ -822,7 +932,7 @@ bad:
 			}
 
 			if( !sno || !(cacert || signcert) ) {
-				BIO_printf( bio_err, 
+				BIO_printf( bio_err,
 					"%s:%d serial and cacert/signcert required for %s messages!\n",
 			       	__FILE__, __LINE__, msgtype );
 				goto bad;
@@ -830,19 +940,36 @@ bad:
 
 			ias = PKCS7_ISSUER_AND_SERIAL_new();
 			if( cacert )
-				ias->issuer = X509_NAME_dup( 
+				ias->issuer = X509_NAME_dup(
 						X509_get_subject_name(cacert));
 			else if ( signcert )
-				ias->issuer = X509_NAME_dup( 
+				ias->issuer = X509_NAME_dup(
 						X509_get_issuer_name(signcert));
 			else
 				goto err;
 
 			ias->serial = sno;
 		}
+		if(type == MSG_GETNEXTCA)
+		{
+			if(!signcert || !pkey ){
+				BIO_printf( bio_err,
+					"%s:%d signercert and signer privatekey required for %s messages!\n",
+			       	__FILE__, __LINE__, msgtype );
+				goto bad;
+			}
+
+			if(!nextcacert) {
+				BIO_printf( bio_err,
+					"%s:%d nextcacert required for %s messages!\n",
+			       	__FILE__, __LINE__, msgtype );
+				goto bad;
+			}
+
+		}
 
 		newMsg = SCEP_MSG_new( type, signcert, pkey, reccert, msg,
-				    req, issuedcert, NULL, ias, crl, cacert, cipher );
+				    req, issuedcert, NULL, ias, crl, cacert, cipher, nextcacert , nextracert, hashalg );
 
 		if( newMsg == NULL ) {
 			BIO_printf( bio_err, "%s:%d Error creating message!\n",
@@ -858,7 +985,10 @@ bad:
 				__FILE__, __LINE__, msgstatus, status );
 		}
 		if( status >= 0 ) SCEP_set_pkiStatus ( newMsg, status );
-		
+
+		/*add CA chain to SCEP MSG*/
+		if(cachain) newMsg->sk_others = cachain;
+
 		/* Set the failinfo extension */
 		failinfo = (int) SCEP_str2failure( msgfailinfo );
 		if( failinfo < -1 ) {
@@ -981,7 +1111,7 @@ prepreply:
 
 	if( print_transid && out_msg ) {
 		char *transid = NULL;
-		
+
 		if( (transid = SCEP_MSG_transid( out_msg )) != NULL )
 			BIO_printf( outbio, "TRANSACTION ID=%s\n", transid );
 		else
@@ -991,7 +1121,7 @@ prepreply:
 	}
 
 	if( print_msgtype && out_msg ) {
-		BIO_printf( outbio, "%s (%d)\n", 
+		BIO_printf( outbio, "%s (%d)\n",
 			SCEP_type2str(out_msg->messageType), out_msg->messageType );
 	}
 
@@ -1046,8 +1176,7 @@ prepreply:
 
 			PEM_write_bio_X509_REQ(outbio, x509_req);
 		} else {
-			BIO_printf(bio_err, "%s:%d: cannot decrypt request\n",
-                                __FILE__, __LINE__);
+			BIO_printf(bio_err, "%s:%d: cannot decrypt request\n", __FILE__, __LINE__);
 			goto err;
 		}
 		X509_REQ_free( x509_req );
@@ -1063,7 +1192,7 @@ prepreply:
 			goto err;
 		}
 
-		crl = SCEP_MSG_decrypt_CERTREP( out_msg, pkey, 
+		crl = SCEP_MSG_decrypt_CERTREP( out_msg, pkey,
 				signcert, NULL );
 
 		if( crl ) {
@@ -1088,14 +1217,14 @@ prepreply:
 			BIO_printf( outbio, "\nSigner Certificate:\n" );
                         X509_print_ex( outbio, out_msg->signer_cert,
                                        XN_FLAG_RFC2253&(~ASN1_STRFLGS_ESC_MSB), X509_FLAG_COMPAT );
-		} 
+		}
 		if ( !noout && text ) {
 			dump_cert_text( outbio, out_msg->signer_cert );
 		}
 
 		if( noout ) PEM_write_bio_X509( outbio, out_msg->signer_cert );
 	}
-	
+
 	/* successful completion					*/
 	exit(EXIT_SUCCESS);
 
@@ -1158,7 +1287,7 @@ X509 *load_certificate ( char *fname, int format ) {
 
 	if (!fname) return NULL;
 
-	if (format == FORMAT_UNDEF) 
+	if (format == FORMAT_UNDEF)
 		format = FORMAT_PEM;
 
 	if ((certf=BIO_new_file( fname, "r")) == NULL)
@@ -1168,6 +1297,7 @@ X509 *load_certificate ( char *fname, int format ) {
 		cert = d2i_X509_bio(certf,NULL);
 	else if (format == FORMAT_PEM)
 		cert = (X509 *) PEM_read_bio_X509(certf,NULL,NULL,NULL);
+
 
 	BIO_free( certf );
 
@@ -1182,9 +1312,11 @@ STACK_OF(X509) *load_certificate_stack ( char *fname, int format ) {
 	BIO *certf = NULL;
 	X509 *cert = NULL;
 
+	//printf("cachain fname: %s",fname);
+
 	if (!fname) return NULL;
 
-	if (format == FORMAT_UNDEF) 
+	if (format == FORMAT_UNDEF)
 		format = FORMAT_PEM;
 
 	if ((certf=BIO_new_file( fname, "r")) == NULL)
@@ -1196,16 +1328,45 @@ STACK_OF(X509) *load_certificate_stack ( char *fname, int format ) {
 		return NULL;
 	}
 
+ int m=0;
+
 	do {
-		if (format == FORMAT_ASN1)
+		//printf("cachain cert No: %d",m++);
+
+		if (format == FORMAT_ASN1){
+			//printf("asn1\n");
 			cert = d2i_X509_bio(certf,NULL);
-		else if (format == FORMAT_PEM)
+		}else if (format == FORMAT_PEM){
+			//printf("pem\n");
 			cert = (X509 *) PEM_read_bio_X509(certf,NULL,NULL,NULL);
-		else {
+		}else {
+			//printf("default\n");
 			if( certf ) BIO_free ( certf );
 			return NULL;
 		}
-		if( cert ) sk_X509_push( sk, cert );
+
+		if (cert == NULL)
+				{
+						//printf("cert is null\n");
+						if ((ERR_GET_REASON(ERR_peek_last_error()) ==
+							PEM_R_NO_START_LINE) && (m > 0))
+							{
+								//printf("Clear PemErr\n");
+								ERR_clear_error();
+							break;
+							}
+						else
+							{
+							X509err(X509_F_X509_LOAD_CERT_FILE,
+								ERR_R_PEM_LIB);
+
+							}
+				}else{
+					//printf ("push\n");
+					if( cert ) sk_X509_push( sk, cert );
+					m++;
+				}
+
 	} while (cert);
 
 	return sk;

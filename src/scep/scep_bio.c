@@ -401,47 +401,6 @@ int SCEP_MSG_print( BIO *bio, SCEP_MSG *msg, EVP_PKEY *pkey, X509 *cert ) {
 	}
 	*/
 
-	{
-		int i = 0;
-		
-		STACK_OF(PKCS7_RECIP_INFO) *sk;
-
-		i=OBJ_obj2nid(msg->env_data.p7env->type);
-		switch (i) {
-			case NID_pkcs7_signedAndEnveloped:
-				sk=msg->env_data.p7env->d.signed_and_enveloped->recipientinfo;
-				break;
-			case NID_pkcs7_enveloped:
-				sk=msg->env_data.p7env->d.enveloped->recipientinfo;
-				break;
-			default:
-				break;
-                }
-
-		if ( sk ) {
-			for(i=0;i<sk_PKCS7_RECIP_INFO_num(sk);i++ ) {
-				PKCS7_RECIP_INFO *ri = NULL;
-
-				ri = sk_PKCS7_RECIP_INFO_value(sk, i);
-
-				if( ri->issuer_and_serial ) {
-	
-		BIO_printf( bio, "        Recipient Info [%d]:\n",i );
-		BIO_printf(bio, "            Serial Number: 0x%s (%s)\n",
-			BN_bn2hex(ASN1_INTEGER_to_BN(
-				ri->issuer_and_serial->serial, NULL)),
-			BN_bn2dec(ASN1_INTEGER_to_BN(
-				ri->issuer_and_serial->serial, NULL)));
-		BIO_printf(bio, "            Issuer: ");
-                X509_NAME_print_ex (bio, ri->issuer_and_serial->issuer,
-                                    0, XN_FLAG_RFC2253&(~ASN1_STRFLGS_ESC_MSB));
-		BIO_printf(bio, "\n");
-				}
-			}
-		}
-	}
-
-	/*
 	if( msg->env_data.recip_info.ias ) {
 		BIO_printf( bio, "        Recipient Info:\n" );
 		BIO_printf(bio, "            Serial Number: 0x%s (%s)\n",
@@ -454,7 +413,6 @@ int SCEP_MSG_print( BIO *bio, SCEP_MSG *msg, EVP_PKEY *pkey, X509 *cert ) {
                                     0, XN_FLAG_RFC2253&(~ASN1_STRFLGS_ESC_MSB));
 		BIO_printf(bio, "\n");
 	}
-	*/
 
 	if( pkey ) {
 		unsigned char *data=NULL;

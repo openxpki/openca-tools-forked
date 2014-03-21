@@ -46,7 +46,7 @@ SCEP_MSG *SCEP_MSG_new( int messageType, X509 *cert, EVP_PKEY *pkey,
 		X509 *recip_cert, SCEP_MSG *inMsg, X509_REQ *req,
 		X509 *issued_cert, SCEP_ISSUER_AND_SUBJECT *cert_info,
 		PKCS7_ISSUER_AND_SERIAL *ias, X509_CRL *crl, X509 *cacert,
-		EVP_CIPHER cipher ) {
+		EVP_CIPHER cipher ,X509 *nextca_cert,X509 *nextra_cert , EVP_MD hashalg ) {
 
 	SCEP_MSG *msg = NULL;
 	PKCS7_SIGNER_INFO *si = NULL;
@@ -76,9 +76,11 @@ SCEP_MSG *SCEP_MSG_new( int messageType, X509 *cert, EVP_PKEY *pkey,
 	if((msg = SCEP_MSG_new_null()) == NULL) return NULL;
 	if (debug)
 		BIO_printf( debug_bio, "%s:%d: [Debug Info] Allocate memory\n", __FILE__, __LINE__);
-	
+
 	/* Signed Infos */
-	dgst = (EVP_MD *) EVP_get_digestbyname("md5");
+	//dgst = (EVP_MD *) EVP_get_digestbyname("md5");
+	dgst = &hashalg ; //Added support to choose hash Algorithm to be used via parameter
+	msg->hashalg = hashalg; //save hashalg in SCEP msg struct for later use
 	if( (si = PKCS7_SIGNER_INFO_new()) == NULL ) goto err;
 	if(!PKCS7_SIGNER_INFO_set(si, cert, pkey, dgst)) goto err;
 	sk_PKCS7_SIGNER_INFO_push( msg->sk_signer_info, si );
@@ -100,7 +102,7 @@ SCEP_MSG *SCEP_MSG_new( int messageType, X509 *cert, EVP_PKEY *pkey,
 	if( !recip_cert && inMsg ) recip_cert = inMsg->signer_cert;
 
 	/* Set the messageType */
-	SCEP_set_messageType ( msg, messageType );
+	if(!nextca_cert)SCEP_set_messageType ( msg, messageType );  //no messageType for getnextCA
 
 	if (debug)
 		BIO_printf( debug_bio, "%s:%d: [Debug Info] message type set\n", __FILE__, __LINE__);
@@ -114,8 +116,8 @@ SCEP_MSG *SCEP_MSG_new( int messageType, X509 *cert, EVP_PKEY *pkey,
                         PKCS7_content_new( msg->env_data.p7, NID_pkcs7_data );
 			if( issued_cert ) {
 				if (debug)
-					BIO_printf( debug_bio, 
-						"%s:%d: creating inner degenerated PKCS7... \n", 
+					BIO_printf( debug_bio,
+						"%s:%d: creating inner degenerated PKCS7... \n",
 						__FILE__, __LINE__);
 				/* Adds issued certificate */
 				PKCS7_add_certificate( msg->env_data.p7, issued_cert );
@@ -125,18 +127,49 @@ SCEP_MSG *SCEP_MSG_new( int messageType, X509 *cert, EVP_PKEY *pkey,
 					BIO_printf( debug_bio, "%s:%d: done \n", __FILE__, __LINE__);
 			} else if( crl ) {
 				if (debug)
-					BIO_printf( debug_bio, 
-						"%s:%d: Adding CRL ... \n", 
+					BIO_printf( debug_bio,
+						"%s:%d: Adding CRL ... \n",
 						__FILE__, __LINE__);
 				/* Adds crl */
 				PKCS7_add_crl( msg->env_data.p7, crl );
 				envelope = 1;
 				if (debug)
 				        BIO_printf( debug_bio, "%s:%d: done \n", __FILE__, __LINE__);
-				
-			} 
+
+			}
 			if (debug)
 				BIO_printf( debug_bio, "%s:%d: [Debug Info] done\n", __FILE__, __LINE__);
+			break;
+		case MSG_GETNEXTCA:
+
+			//set message type for later use
+			msg->messageType= MSG_GETNEXTCA;
+			if (debug)
+		        	BIO_printf( debug_bio, "%s:%d: [Debug Info] Actions for GetNextCA\n", __FILE__, __LINE__);
+			msg->env_data.NID_p7data = NID_pkcs7_signed;
+                        msg->env_data.p7 = PKCS7_new();
+                        PKCS7_set_type( msg->env_data.p7, NID_pkcs7_signed );
+                        //PKCS7_content_new( msg->env_data.p7, NID_pkcs7_data );
+			if( nextca_cert ) {
+				if (debug)
+					BIO_printf( debug_bio,
+						"%s:%d: creating inner degenerated PKCS7... \n",
+						__FILE__, __LINE__);
+				/* Adds nextCA certificate */
+				PKCS7_add_certificate( msg->env_data.p7, nextca_cert );
+
+				/* Adds nextRA certificate if provided */
+				if(nextra_cert){
+					PKCS7_add_certificate( msg->env_data.p7, nextra_cert );
+				}
+
+				if (debug)
+					BIO_printf( debug_bio, "%s:%d: done \n", __FILE__, __LINE__);
+			}else{
+				if (debug)
+						BIO_printf( debug_bio, "%s:%d: no nextCA certificate found! \n", __FILE__, __LINE__);
+				return NULL;
+			}
 			break;
 		case MSG_PKCSREQ:
 			if (debug)
@@ -144,10 +177,10 @@ SCEP_MSG *SCEP_MSG_new( int messageType, X509 *cert, EVP_PKEY *pkey,
 			/* The inner pkcs7 structure is signed
 			 * and enveloped and the data is to be
 			 * the X509_REQ passed */
-			msg->env_data.NID_p7data = 
+			msg->env_data.NID_p7data =
 			 	NID_pkcs7_signedAndEnveloped;
 
-			if( req ) { 
+			if( req ) {
 				msg->env_data.content.req = req;
 
 				/* Ask for the data p7 to be generated and
@@ -167,7 +200,7 @@ SCEP_MSG *SCEP_MSG_new( int messageType, X509 *cert, EVP_PKEY *pkey,
 		case MSG_GETCERT:
 			if (debug)
 				BIO_printf( debug_bio, "%s:%d: [Debug Info] Actions for GETCERT\n", __FILE__, __LINE__);
-			msg->env_data.NID_p7data = 
+			msg->env_data.NID_p7data =
 				NID_pkcs7_signedAndEnveloped;
 			/* If it is a query for a general certificate
 			 * the CAcert should be included in the enveloped
@@ -200,7 +233,7 @@ SCEP_MSG *SCEP_MSG_new( int messageType, X509 *cert, EVP_PKEY *pkey,
 		default:
 			goto err;
 	}
-	
+
 	if (debug)
 		BIO_printf( debug_bio, "%s:%d: Debug ... \n", __FILE__, __LINE__);
 
@@ -231,7 +264,8 @@ SCEP_MSG *SCEP_MSG_new( int messageType, X509 *cert, EVP_PKEY *pkey,
 			BIO_printf( debug_bio, "%s:%d: [Debug Info] take data from request\n", __FILE__, __LINE__);
 
 		switch ( msg->messageType ) {
-		   default:
+
+			default:
 			if (debug)
 				BIO_printf( debug_bio, "%s:%d: [Debug Info]   set transId\n", __FILE__, __LINE__);
 			/* The transId is ever required */
@@ -247,7 +281,7 @@ SCEP_MSG *SCEP_MSG_new( int messageType, X509 *cert, EVP_PKEY *pkey,
 				BIO_printf( debug_bio, "%s:%d: [Debug Info]   set recipient nonce (sendernonce from req)\n", __FILE__, __LINE__);
 			/* Copy the sendernonce to the recipient nonce and
 			 * generate a new sendernonce for the generated msg */
-			tmp = SCEP_get_octect_attr_by_name( inMsg->attrs, 
+			tmp = SCEP_get_octect_attr_by_name( inMsg->attrs,
 					"senderNonce", &len);
 			if( tmp ) {
 				if (debug)
@@ -269,13 +303,20 @@ SCEP_MSG *SCEP_MSG_new( int messageType, X509 *cert, EVP_PKEY *pkey,
 			BIO_printf( debug_bio, "%s:%d: [Debug Info] done\n", __FILE__, __LINE__);
 		}
 	} else {
+
+		/*don't add  attributes for GETNEXTCA*/
+		if(messageType != MSG_GETNEXTCA)
+		{
 		if (debug)
 			BIO_printf( debug_bio, "%s:%d: [Debug Info] generate new data\n", __FILE__, __LINE__);
+
 		SCEP_set_senderNonce_new ( msg );
 		SCEP_set_recipientNonce_new ( msg );
 		SCEP_set_transId_new ( msg );
 		if (debug)
 			BIO_printf( debug_bio, "%s:%d: [Debug Info] done\n", __FILE__, __LINE__);
+
+		}
 	}
 
 	if (debug)
@@ -365,7 +406,7 @@ int SCEP_MSG_encrypt( SCEP_MSG *msg, X509 *recip_cert, EVP_CIPHER cipher ) {
 	} else {
 		return 0;
 	}
-	
+
 	inbio = BIO_new ( BIO_s_mem());
 	/* Any message type has different data to be encrypted
 	 * and checks to be done */
@@ -376,14 +417,14 @@ int SCEP_MSG_encrypt( SCEP_MSG *msg, X509 *recip_cert, EVP_CIPHER cipher ) {
 			if(! msg->env_data.content.req ) goto err;
 
 			/* Write the request to the inbio */
-			if( i2d_X509_REQ_bio( inbio, msg->env_data.content.req ) <= 0) 
+			if( i2d_X509_REQ_bio( inbio, msg->env_data.content.req ) <= 0)
 				goto err;
 			break;
 		case MSG_GETCRL:
 		case MSG_GETCERT:
 			if( !msg->env_data.content.ias ) goto err;
 			len = i2d_PKCS7_ias_bio( inbio, msg->env_data.content.ias);
-		
+
 			if( len <= 0 ) goto err;
 			break;
 		case MSG_CERTREP:
@@ -393,13 +434,13 @@ int SCEP_MSG_encrypt( SCEP_MSG *msg, X509 *recip_cert, EVP_CIPHER cipher ) {
 				len = i2d_X509_bio ( inbio,
 						msg->env_data.content.issued_cert );
 			}
-*/			
-			if ( msg->env_data.p7 ) 
+*/
+			if ( msg->env_data.p7 )
 				len = i2d_PKCS7_bio( inbio, msg->env_data.p7 );
 			break;
 		default:
 			printf("%s:%d Unsupported MessageType %d (%s)\n",
-				__FILE__, __LINE__, msg->messageType, 
+				__FILE__, __LINE__, msg->messageType,
 				SCEP_type2str(msg->messageType) );
 	}
 
@@ -410,11 +451,11 @@ int SCEP_MSG_encrypt( SCEP_MSG *msg, X509 *recip_cert, EVP_CIPHER cipher ) {
 	if( !msg->env_data.recip_info.sk_recip_certs ) goto err;
 
 	/* If already present an encoded pkcs7, let's free */
-	if( msg->env_data.p7env ) 
+	if( msg->env_data.p7env )
 		PKCS7_free( msg->env_data.p7env );
 
 	/* Encrypt Data */
-	msg->env_data.p7env = PKCS7_encrypt( 
+	msg->env_data.p7env = PKCS7_encrypt(
 		msg->env_data.recip_info.sk_recip_certs,
 		inbio, &cipher, PKCS7_BINARY );
 
@@ -430,7 +471,7 @@ err:
 	return ret;
 }
 
-unsigned char *SCEP_MSG_decrypt( SCEP_MSG *msg, EVP_PKEY *ppkey, 
+unsigned char *SCEP_MSG_decrypt( SCEP_MSG *msg, EVP_PKEY *ppkey,
 		X509 *cert, long *len ) {
 
 	char *ret = NULL;
@@ -522,7 +563,7 @@ err:
 	return ret;
 }
 char *SCEP_MSG_transid ( SCEP_MSG *msg ) {
-	       char *tmp = NULL; 
+	       char *tmp = NULL;
                tmp = SCEP_get_string_attr_by_name( msg->attrs, "transId" );
 	       return tmp;
 }
