@@ -1,5 +1,5 @@
 /*
- * OpenCA SCEP 
+ * OpenCA SCEP
  *
  * (c) 2002 by Massimiliano Pala and OpenCA Group
  *
@@ -21,7 +21,6 @@
 #include <errno.h>
 #include <string.h>
 
-/*
 #define FORMAT_UNDEF    0
 #define FORMAT_ASN1     1
 #define FORMAT_DER      1
@@ -29,7 +28,6 @@
 #define FORMAT_PEM      3
 #define	FORMAT_ENGINE	4
 #define FORMAT_B64      5
-*/
 
 /*
 #ifndef VERSION
@@ -61,9 +59,9 @@ typedef struct {
 
 typedef struct {
 	int NID_p7data;
-	
+
 	/* enc p7 enveloped data */
-	PKCS7 *p7env; 
+	PKCS7 *p7env;
 	PKCS7 *p7;
 
 	/* Info about the recipient of the message */
@@ -101,6 +99,8 @@ typedef struct {
 	SCEP_ENVELOPED_DATA env_data;
 
 	STACK_OF(X509) *sk_others;
+	
+	EVP_MD hashalg;
 
 } SCEP_MSG;
 
@@ -130,6 +130,7 @@ typedef struct {
 #define MSG_GETCERTINITIAL			20
 #define MSG_GETCERT				21
 #define MSG_GETCRL				22
+#define MSG_GETNEXTCA			23
 
 #define	SCEP_PKISTATUS_SUCCESS			"0"
 #define	SCEP_PKISTATUS_FAILURE			"2"
@@ -173,7 +174,8 @@ typedef struct {
 (0 == strcmp("CertRep", a)) ? MSG_CERTREP : (		\
 (0 == strcmp("GetCertInitial", a)) ? MSG_GETCERTINITIAL : (\
 (0 == strcmp("GetCert", a)) ? MSG_GETCERT : (		\
-(0 == strcmp("GetCRL", a)) ? MSG_GETCRL : -1 ))))))))
+(0 == strcmp("GetNextCACert", a)) ? MSG_GETNEXTCA : (		\
+(0 == strcmp("GetCRL", a)) ? MSG_GETCRL : -1 )))))))))
 
 #define	SCEP_TYPE(a)						(	\
 (NULL == a) ? "(not set)" :					(	\
@@ -241,6 +243,8 @@ typedef struct {
 #define EXTENSION_REQ_OID_STRING	"extensionReq"
 #define PROXY_AUTHENTICATOR_OID 	"1.3.6.1.4.1.4263.5.5"
 #define PROXY_AUTHENTICATOR_OID_STRING	"proxyAuthenticator"
+#define PKCS9_CHALLANGE_PASSOWRD_OID "1.2.840.113549.1.9.7"
+#define PKCS9_CHALLANGE_PASSOWRD_OID_STRING "challengePassword"
 
 #define SCEP_str2attribute(a)			(	\
 (NULL == a) ? -1 :				(	\

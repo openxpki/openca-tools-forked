@@ -1,0 +1,15 @@
+Source: openca-tools
+Section: unknown
+Priority: extra
+Maintainer: OpenXPKI Foundation <debian@openxpki.org>
+Build-Depends: debhelper (>= 7.0.50~), autotools-dev
+Standards-Version: 3.8.4
+Homepage: http://www.openca.org/projects/openca/tools-sources.shtml 
+#Vcs-Git: git://git.debian.org/collab-maint/openca-tools.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/openca-tools.git;a=summary
+
+Package: openca-tools
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: provides command line tools to deal with scep and pkcs7
+ 

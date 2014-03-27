@@ -11,6 +11,7 @@ PKCS7* i2pk7_SCEP_MSG ( SCEP_MSG *msg, EVP_PKEY *pkey ) {
 	BIO *bio = NULL;
 	PKCS7 *p7 = NULL;
 	PKCS7_SIGNER_INFO *si = NULL;
+	PKCS7_SIGNER_INFO *msg_si =NULL;
 
 	STACK_OF(X509) *sk_others = NULL;
 	X509 *x509 = NULL;
@@ -42,8 +43,14 @@ PKCS7* i2pk7_SCEP_MSG ( SCEP_MSG *msg, EVP_PKEY *pkey ) {
 		BIO_printf( debug_bio, "%s:%d: [Debug Info]   signer certificate added\n", __FILE__, __LINE__);
 
 	/* The p7 has to be signed, initialize the signature */
-        if( (si = PKCS7_add_signature( p7, msg->signer_cert,
-                        pkey, EVP_md5())) == NULL )
+    //   if( (si = PKCS7_add_signature( p7, msg->signer_cert,
+    //                    pkey, EVP_md5())) == NULL )
+
+	//try to get the used hash algorithem from singer info
+	//si = sk_PKCS7_SIGNER_INFO_value(msg->sk_signer_info, 0);
+
+    if( (si = PKCS7_add_signature( p7, msg->signer_cert,
+                    pkey, &(msg->hashalg) )) == NULL )
                 goto err;
 	if (debug)
 		BIO_printf( debug_bio, "%s:%d: [Debug Info]   signature added\n", __FILE__, __LINE__);
@@ -59,6 +66,7 @@ PKCS7* i2pk7_SCEP_MSG ( SCEP_MSG *msg, EVP_PKEY *pkey ) {
 					PKCS7_add_certificate( p7, x509 );
 				}
 			}
+			break;
 			/* Adds the issued certificate for the client */
 /*			if( msg->env_data.content.issued_cert ) {
 				PKCS7_add_certificate( p7,
@@ -78,7 +86,22 @@ PKCS7* i2pk7_SCEP_MSG ( SCEP_MSG *msg, EVP_PKEY *pkey ) {
 					msg->env_data.content.self_signed_cert );
 			}
 			*/
-		case MSG_V2REQUEST:
+
+		case MSG_GETNEXTCA:
+			//set data for handling
+			msg->env_data.p7env = msg->env_data.p7;
+
+			//add certificate chain to pkcs7
+			sk_others = msg->sk_others;
+			if( sk_others ) {
+				for(i = 0; i<sk_X509_num(sk_others); i++) {
+					x509 = sk_X509_value( sk_others, i );
+					PKCS7_add_certificate( p7, x509 );
+				}
+			}
+
+			break;
+ 		case MSG_V2REQUEST:
 		case MSG_PKCSREQ:
 		case MSG_GETCERTINITIAL:
 		case MSG_GETCRL:
@@ -104,13 +127,15 @@ PKCS7* i2pk7_SCEP_MSG ( SCEP_MSG *msg, EVP_PKEY *pkey ) {
 		BIO_flush( bio );
 		BIO_set_flags( bio, BIO_FLAGS_MEM_RDONLY );
 		data_len = BIO_get_mem_data( bio, &data );
+
+
 	}
 	if (debug)
 		BIO_printf( debug_bio, "%s:%d: [Debug Info]   output PKCS#7\n", __FILE__, __LINE__);
 	ERR_print_errors_fp(stderr);
 	if (debug)
 		BIO_printf( debug_bio, "%s:%d: [Debug Info]   errors printed\n", __FILE__, __LINE__);
-	
+
 	/* Add signed attributes */
 	PKCS7_set_signed_attributes( si, msg->attrs );
 
@@ -123,13 +148,20 @@ PKCS7* i2pk7_SCEP_MSG ( SCEP_MSG *msg, EVP_PKEY *pkey ) {
         if( (bio = PKCS7_dataInit( p7, NULL )) == NULL )
                 goto err;
 
-        if( data_len > 0 ) 
-                BIO_write( bio, data, data_len );
+        if( data_len > 0 ){
+          	BIO_write( bio, data, data_len );
+          }
+
 	ERR_print_errors_fp(stderr);
-	
+
 	/* Finalize signature */
 	PKCS7_dataFinal( p7, bio );
-	
+
+	if(p7->d.sign->contents->d.data == NULL)
+	{
+	   printf("is null\n");
+	}
+
 	return p7;
 
 err:
