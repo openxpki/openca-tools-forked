@@ -529,14 +529,16 @@ int	main(int argc, char *argv[]) {
 #endif
 		else if (strcmp(*argv,"-des") == 0)
 			cipher=*EVP_des_cbc();
+                else if (strcmp(*argv,"-md5") == 0)
+                        hashalg=*EVP_md5();
 		else if (strcmp(*argv,"-sha1") == 0)
 			hashalg=*EVP_sha1();
 		else if (strcmp(*argv,"-sha224") == 0)
 			hashalg=*EVP_sha224();
-		else if (strcmp(*argv,"-sha384") == 0)
-			hashalg=*EVP_sha384();
 		else if (strcmp(*argv,"-sha256") == 0)
 			hashalg=*EVP_sha256();
+		else if (strcmp(*argv,"-sha384") == 0)
+			hashalg=*EVP_sha384();
 		else if (strcmp(*argv,"-sha512") == 0)
 			hashalg=*EVP_sha512();
 		else if (strcmp(*argv,"-v") == 0)
