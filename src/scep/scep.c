@@ -535,6 +535,8 @@ int	main(int argc, char *argv[]) {
 			hashalg=*EVP_sha224();
 		else if (strcmp(*argv,"-sha384") == 0)
 			hashalg=*EVP_sha384();
+		else if (strcmp(*argv,"-sha256") == 0)
+			hashalg=*EVP_sha256();
 		else if (strcmp(*argv,"-sha512") == 0)
 			hashalg=*EVP_sha512();
 		else if (strcmp(*argv,"-v") == 0)
