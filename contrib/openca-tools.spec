@@ -48,7 +48,7 @@
 
 %define packer %(finger -lp `echo "$USER"` | head -n 1 | cut -d ' ' -f 2)
 
-%define ver      	1.3.0
+%define ver      	1.4.0
 %define RELEASE 	1
 %define rel     	%{?CUSTOM_RELEASE} %{!?CUSTOM_RELEASE:%RELEASE}
 %define prefix   	/usr

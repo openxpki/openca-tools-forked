@@ -3,7 +3,7 @@ A package for squeeze is available at
 http://packages.openxpki.org/
 
 To make a deb on your own, you first need to create a source tarball:
-tar -zcf ../openca-tools_1.3.0.orig.tar.gz *
+tar -zcf ../openca-tools_1.4.0.orig.tar.gz *
 Now run the dpkg command:
 dpkg-buildpackage -rfakeroot -us -uc
 
