@@ -1,3 +1,6 @@
+* Sep 27 2013 Massimiliano Pala <madwolf@openca.org>
+- Fixed version information display
+
 * Jan 16 2010 Massimiliano Pala <madwolf@openca.org>
 - Fixed missing support for STACK symbol in OpenSSL 1.0+
 - Fixed configure.in and libool files to support new automake/autoconf

@@ -65,7 +65,7 @@ int chainVerify = 1;
 int stop_on_errors = 0;
 
 char *INFO[] = {
-PACKAGE_VERSION,
+VERSION,
 "OpenCA PKCS#7 Tool\x0",
 "Massimiliano Pala - OpenCA Project\x0",
 "OpenCA Licensed Software\x0",

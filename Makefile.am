@@ -57,23 +57,16 @@ EXTRA_SCRIPTS = \
 	contrib/openca-tools.spec
 
 INCLUDE_DIST = \
-	include/openca/apps.h  \
-	include/openca/acconfig.h  \
-	include/openca/config.h.in \
-	include/openca/general.h \
-	include/openca/callback.h \
-	include/openca/sv.h \
-	include/openca/crmf_asn1.h \
-	include/openca/crmf_bio.h \
-	include/openca/stamp-h1 \
-	include/openca/tools.h
-	include/openca/*.h \
-	include/openca/*.h.in
-
-#	include/openca/sign2nd.h
-#	include/openca/tools.h
-#	include/openca/verify.h
-#	include/openca/sign.h
+	include/openca/acconfig.h 	\
+	include/openca/apps.h		\
+	include/openca/callback.h	\
+	include/openca/config.h		\
+	include/openca/crmf_asn1.h	\
+	include/openca/crmf_bio.h	\
+	include/openca/general.h	\
+	include/openca/sv.h		\
+	include/openca/tools.h		\
+	include/openca/config.h.in
 
 EXAMPLES = examples
 
@@ -89,7 +82,7 @@ test::
 ########################################################
  
 INSTALL_BUILDER = @INSTALL_BUILDER@
-DEST_DIR = "/var/tmp/$(PKGNAME)-$(VERSION)"
+DEST_DIR = `pwd`"tmp-$(PKGNAME)-$(VERSION)"
 IB_OUTPUT=`find $(HOME)/installbuilder* -name output`
 PACKAGE_NAME="$(PKGNAME)-$(VERSION)"
 RC=1
@@ -162,10 +155,6 @@ rpmbuild:
 	rm ~/.rpmmacros ; \
 	echo
 
-# pkgconfig:
-# 	@echo "Configuring the package ($(BUILD_DIR)) ... "
-# 	@make clean
-# 	@DESTDIR="$(DEST_DIR)" ./configure --prefix=/usr
 
 pkgbuild: 
 	@rm -rf "$(DEST_DIR)"

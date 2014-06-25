@@ -7,6 +7,9 @@ AC_PREREQ(2.50)
 AC_CONFIG_AUX_DIR(build)
 AC_CONFIG_MACRO_DIR([m4])
 
+# PKGVERSION=`cat VERSION`
+# AC_SUBST(PKGVERSION)
+
 VERSION=`cat VERSION`
 DATE=`date +%Y%m%d`
 PKGNAME="openca-tools"
@@ -384,12 +387,12 @@ AM_CONDITIONAL(OPENSSL_PREFIX, test x$openssl_prefix != x )
 
 dnl OpenSSL Engine Support
 AC_ARG_ENABLE( openssl-engine,
-[  --enable-engine             enable openssl engine support (no)],
+[  --enable-engine             enable openssl engine support (yes)],
 [case "${enableval}" in
   yes)	engine=true ;;
   no)	engine=false ;;
   *) AC_MSG_ERROR([bad value ${engine} for --enable-engine]) ;;
- esac], [engine=false])
+ esac], [engine=true])
 
 AC_MSG_RESULT([enable engine support   : $engine])
 
