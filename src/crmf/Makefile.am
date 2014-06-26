@@ -13,7 +13,7 @@ INCLUDE_LIBS   =
 else
 if ARCH_OSX
 MYLDFLAGS      = -framework CoreFoundation
-INCLUDE_LIBS   = -ll -lIOKit
+INCLUDE_LIBS   = -ll -framework IOKit
 COND_INCLUDES  = -I/System/Library/Frameworks/IOKit.framework/Headers/usb \
             -I/System/Library/Frameworks/IOKit.framework/Headers
 else
